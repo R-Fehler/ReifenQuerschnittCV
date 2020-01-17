@@ -2,7 +2,7 @@
 % Skript um den Querschnitt zu analysieren
 function []=Reifenquerschnitt()
 
-clear all;
+clearvars ;
 close all; clc;
 %% Einlesen der Bilder
 [path,cancelled]=uigetimagefile();
@@ -78,17 +78,30 @@ x1 = linspace(0,length(img(1,:)),n);
 y1 = polyval(p,x1);
 
 
-title('L�sche ungewollte Mittelpunkte mit Link und Brush Tool bei Bedarf, schliesse das Fenster danach');
-plot(new_centers(:,1),new_centers(:,2),'o','LineWidth',2);
-plot(x1,y1,'LineWidth',2,'Color','green');
+%% linked brushing funktioniert nur im breakpoint/keyboard modus!! Daten 
+title('L�sche ungewollte Mittelpunkte mit Link und Brush Tool bei Bedarf,>>K dbcont eingeben,Press Done');
+plot(new_centers(:,1),new_centers(:,2),'o','LineWidth',2,...
+    'XDataSource','new_centers(:,1)','YDataSource','new_centers(:,2)','ZDataSource','new_radii');
 
 linkdata on; 
 brush on;
-waitfor(fh, 'CurrentCharacter', char(13));
-brush off;
-linkdata off;
+doneHandle=uicontrol('String','Done', 'Callback', {@part2function}'); 
+keyboard
+%% ENTER dbcont in K>> console
+
+    function []= part2function(src,evt)
 
 %% Kreise in oberhalb und unterhalb des Polynoms einteilen
+% rmmissing(edited_centersX);
+% rmmissing(edited_centersY);
+% new_centers(:,1)=edited_centersX;
+% new_centers(:,2)=edited_centersY;
+
+linkdata off;
+brush off;
+delete(doneHandle)
+plot(x1,y1,'LineWidth',2,'Color','green');
+
 upper_centers=[];
 upper_radii=[];
 lower_centers=[];
@@ -113,9 +126,9 @@ plot(lower_centers(:,1),lower_centers(:,2),'x','LineWidth',2);
 
 %% Berechnen der A und D Werte
 A_s_upper=pi*upper_radii.^2;
-A_s_upper_avg=mean(A_s_upper);
+A_s_upper_avg=mean(A_s_upper)
 D_s_upper=upper_radii*2;
-D_s_upper_avg=mean(D_s_upper);
+D_s_upper_avg=mean(D_s_upper)
 
 A_s_lower=pi*lower_radii.^2;
 A_s_lower_avg=mean(A_s_lower)
@@ -137,9 +150,9 @@ for nn=1:size(upper_centers,1)
         end
         
     end
-    if  upper_avg_centers(nn,1)==0
-        upper_avg_centers(nn,1)=upper_centers(nn,1);
-        upper_avg_centers(nn,2)=upper_centers(nn,2);
+    if  upper_avg_centers(nn,1)==0 %% wenn nur ein kreis erkannt wird setzte diesen als  Mittelpunkt
+            upper_avg_centers(nn,1)=upper_centers(nn,1);
+            upper_avg_centers(nn,2)=upper_centers(nn,2);
     end
 end
 
@@ -165,7 +178,12 @@ for nn=1:size(lower_centers,1)
             lower_avg_centers(nn,2)=(lower_centers(nn,2)+lower_centers(mm,2))/2;
             
         end
+            
     end
+            if  lower_avg_centers(nn,1)==0 %% wenn nur ein kreis erkannt wird setzte diesen als  Mittelpunkt
+                    lower_avg_centers(nn,1)=lower_centers(nn,1);
+                    lower_avg_centers(nn,2)=lower_centers(nn,2);
+            end
     
 end
 
@@ -181,22 +199,81 @@ for nn=1:(size(lower_avg_centers,1)-1)
 end
 
 
-
 plot(upper_avg_centers(:,1),upper_avg_centers(:,2),'x','LineWidth',2);
 plot(lower_avg_centers(:,1),lower_avg_centers(:,2),'x','LineWidth',2);
 waitforbuttonpress;
 
-p1 = sorted_upper_avg_centers;                        
-dp = upper_avg_centers_dst;                       
-quiver(p1(1:end-1,1),p1(1:end-1,2),dp(:,1),dp(:,2),0)
+p_upper = sorted_upper_avg_centers;                        
+dp_upper = upper_avg_centers_dst;                       
+quiver(p_upper(1:end-1,1),p_upper(1:end-1,2),dp_upper(:,1),dp_upper(:,2),0)
+
+
+distanceUpper=sqrt((mean(nonzeros(dp_upper(:,1))))^2+(mean(nonzeros(dp_upper(:,2))))^2)
+
+p_lower = sorted_lower_avg_centers;                        
+dp_lower = lower_avg_centers_dst;                       
+quiver(p_lower(1:end-1,1),p_lower(1:end-1,2),dp_lower(:,1),dp_lower(:,2),0)
+distanceLower=sqrt((mean(nonzeros(dp_lower(:,1))))^2+(mean(nonzeros(dp_lower(:,2))))^2)
+
+
 
 waitforbuttonpress;
 viscircles(upper_centers, upper_radii,'EdgeColor','r');
 
 viscircles(lower_centers, lower_radii,'EdgeColor','b');
 
+figure;
+
+subplot(2,2,1),histo_upper_complete=histogram(nonzeros(dp_upper),100,'Normalization','pdf');
+hold on
+y = nonzeros(dp_upper);
+y(y<10)=NaN;
+y=sort(y);
+mu = distanceUpper;
+sigma = 4;
+f = exp(-(y-mu).^2./(2*sigma^2))./(sigma*sqrt(2*pi));
+plot(y,f,'LineWidth',1.5)
+hold off
+subplot(2,2,2),histo_lower_complete=histogram(nonzeros(dp_lower),100,'Normalization','pdf');
+
+hold on
+y = nonzeros(dp_lower);
+y(y<10)=NaN;
+y=sort(y);
+mu = distanceLower;
+sigma = 4;
+f = exp(-(y-mu).^2./(2*sigma^2))./(sigma*sqrt(2*pi));
+plot(y,f,'LineWidth',1.5)
+hold off
+
+
+dp_upper(dp_upper<11)=NaN
+dp_lower(dp_lower<11)=NaN
+
+subplot(2,2,3),histo_A_upper=histogram(nonzeros(dp_upper),100,'Normalization','pdf');
+hold on
+y = nonzeros(dp_upper);
+y(y<10)=NaN;
+y=sort(y);
+mu = distanceUpper;
+sigma = 4;
+f = exp(-(y-mu).^2./(2*sigma^2))./(sigma*sqrt(2*pi));
+plot(y,f,'LineWidth',1.5)
+hold off
+subplot(2,2,4),histo_A_lower=histogram(nonzeros(dp_lower),100
+,'Normalization','pdf');
+hold on
+y = nonzeros(dp_lower);
+y(y<10)=NaN;
+y=sort(y);
+mu = distanceLower;
+sigma = 4;
+f = exp(-(y-mu).^2./(2*sigma^2))./(sigma*sqrt(2*pi));
+plot(y,f,'LineWidth',1.5)
+hold off
 keyboard;
 
+    end
 
 % ph=pan(fh);
 % bwlimit=0.2;
@@ -285,7 +362,7 @@ keyboard;
                 
                 break;
             end
-            children = get(gca, 'children');
+            children = get(gca, 'children'); %% dot operator.data.x==[] ersetzen
             delete(children(1));
             delete(children(2));
         end
@@ -300,9 +377,7 @@ keyboard;
         switch E.Key
             
             case 'rightarrow'
-                
             case 'leftarrow'
-                
             case 'uparrow'
                 delta=delta+1;
             case 'downarrow'
