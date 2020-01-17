@@ -247,8 +247,8 @@ plot(y,f,'LineWidth',1.5)
 hold off
 
 
-dp_upper(dp_upper<11)=NaN
-dp_lower(dp_lower<11)=NaN
+dp_upper(dp_upper<11)=NaN;
+dp_lower(dp_lower<11)=NaN;
 
 subplot(2,2,3),histo_A_upper=histogram(nonzeros(dp_upper),100,'Normalization','pdf');
 hold on
@@ -260,8 +260,7 @@ sigma = 4;
 f = exp(-(y-mu).^2./(2*sigma^2))./(sigma*sqrt(2*pi));
 plot(y,f,'LineWidth',1.5)
 hold off
-subplot(2,2,4),histo_A_lower=histogram(nonzeros(dp_lower),100
-,'Normalization','pdf');
+subplot(2,2,4),histo_A_lower=histogram(nonzeros(dp_lower),100,'Normalization','pdf');
 hold on
 y = nonzeros(dp_lower);
 y(y<10)=NaN;
