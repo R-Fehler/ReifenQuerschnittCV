@@ -92,10 +92,6 @@ keyboard
     function []= part2function(src,evt)
 
 %% Kreise in oberhalb und unterhalb des Polynoms einteilen
-% rmmissing(edited_centersX);
-% rmmissing(edited_centersY);
-% new_centers(:,1)=edited_centersX;
-% new_centers(:,2)=edited_centersY;
 
 linkdata off;
 brush off;
