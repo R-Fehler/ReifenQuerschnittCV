@@ -1,0 +1,36 @@
+1. Image
+-------------
+
+A_s_upper_avg = 64.6147
+
+A_s_lower_avg = 63.3866
+
+avg_distanceUpperLayer = 32.6454
+
+avg_distanceLowerLayer = 32.5608
+
+
+2. Image
+------------
+
+
+A_s_upper_avg = 63.6139
+
+A_s_lower_avg = 63.5257
+
+avg_distanceUpperLayer = 31.9813
+
+avg_distanceLowerLayer = 32.7050
+
+3.Image
+------------
+
+
+A_s_upper_avg = 65.0394
+
+A_s_lower_avg = 59.9584
+
+avg_distanceUpperLayer = 32.3144
+
+avg_distanceLowerLayer = 33.1426
+
