@@ -5,6 +5,12 @@ function [] = Reifenquerschnitt()
 
     clearvars;
     close all; clc;
+
+    use_denoise_CNN = false;
+    use_old_spline = true;
+    doPlotDistribution = true;
+
+    %% Runtime Parameter
     %% Einlesen der Bilder
     [path, cancelled] = uigetimagefile();
     [filepath, name, ext] = fileparts(path);
@@ -13,11 +19,21 @@ function [] = Reifenquerschnitt()
         error('kein Image gew�hlt');
     end
 
+    %% look ahead / behind und groups dann brauch ich kein split mehr.
+    dpi_string = regexp(name, '(?<=_)\d*(?=dpi)', 'match', 'once'); %lookaround regex
+    %     regexp('bla_600dpi', '(?<=_)\d*(?=dpi)', 'match', 'once') % ans='600'
+    if isempty(dpi_string)
+        error('Name keine korrekte DPI angabe');
+    end
+
+    dpi_value = str2num(dpi_string);
+    mm_per_pixel = 25.4 / dpi_value;
+%     mm_per_pixel = 25.4/600;
     img = imread(path);
 
     findCapPly(img, name);
 
-    figHandle = figure('keypressfcn', @fh_kpfcn), imshow(img);
+    figHandle = figure('keypressfcn', @functionHandle_KeyPressFcn), imshow(img);
 
     sensitivity = 0.95;
     maxN_Circles = 450;
@@ -84,12 +100,13 @@ function [] = Reifenquerschnitt()
     y1 = polyval(p, x1);
 
     %% linked brushing funktioniert nur im breakpoint/keyboard modus!! Daten
-    title('L�sche ungewollte Mittelpunkte mit Link und Brush Tool bei Bedarf,>>K dbcont eingeben,Press Done');
+    title('L�sche ungewollte Mittelpunkte mit Link und Brush Tool bei Bedarf,Press Debug Continue,Press Done');
     plot(new_centers(:, 1), new_centers(:, 2), 'o', 'LineWidth', 2, ...
         'XDataSource', 'new_centers(:,1)', 'YDataSource', 'new_centers(:,2)', 'ZDataSource', 'new_radii');
-
+    warndlg('L�schen von Outliern nur mit Rechtsclick --> Remove (im Debug Mode)');
     linkdata on;
     brush on;
+
     doneHandle = uicontrol('String', 'Done', 'Callback', {@evaluateSteelPlyData}');
     keyboard
     %% ENTER dbcont in K>> console
@@ -132,13 +149,17 @@ function [] = Reifenquerschnitt()
         %% Berechnen der A und D Werte
         A_s_upper = pi * upper_radii.^2;
         A_s_upper_avg = mean(A_s_upper, 'omitnan')
+        A_s_upper_avg_mm = mean(A_s_upper, 'omitnan') * mm_per_pixel * mm_per_pixel
         A_s_upper_median = median(A_s_upper, 'omitnan')
+        A_s_upper_median_mm = median(A_s_upper, 'omitnan') * mm_per_pixel * mm_per_pixel
         D_s_upper = upper_radii * 2;
         D_s_upper_avg = mean(D_s_upper);
 
         A_s_lower = pi * lower_radii.^2;
         A_s_lower_avg = mean(A_s_lower, 'omitnan')
+        A_s_lower_avg_mm = mean(A_s_lower, 'omitnan') * mm_per_pixel * mm_per_pixel
         A_s_lower_median = median(A_s_lower, 'omitnan')
+        A_s_lower_median_mm = median(A_s_lower, 'omitnan') * mm_per_pixel * mm_per_pixel
         D_s_lower = lower_radii * 2;
         D_s_lower_avg = mean(D_s_lower);
 
@@ -217,37 +238,57 @@ function [] = Reifenquerschnitt()
 
         % norm() call instead
         distanceUpper = sqrt((mean(nonzeros(dp_upper(:, 1))))^2 + (mean(nonzeros(dp_upper(:, 2))))^2)
+        distanceUpper_mm = sqrt((mean(nonzeros(dp_upper(:, 1))))^2 + (mean(nonzeros(dp_upper(:, 2))))^2) * mm_per_pixel
 
         p_lower = sorted_lower_avg_centers;
         dp_lower = lower_avg_centers_dst;
         quiver(p_lower(1:end - 1, 1), p_lower(1:end - 1, 2), dp_lower(:, 1), dp_lower(:, 2), 0)
         distanceLower = sqrt((mean(nonzeros(dp_lower(:, 1))))^2 + (mean(nonzeros(dp_lower(:, 2))))^2)
+        distanceLower_mm = sqrt((mean(nonzeros(dp_lower(:, 1))))^2 + (mean(nonzeros(dp_lower(:, 2))))^2) * mm_per_pixel
 
         waitforbuttonpress;
         viscircles(upper_centers, upper_radii, 'EdgeColor', 'r');
 
         viscircles(lower_centers, lower_radii, 'EdgeColor', 'b');
 
+        %% plotte die Abstände zwischen Stahldrahten
+        figure;
+        sgtitle('Abstandsverteilung der Stahldraehte ueber X Koordinate in [mm]');
+        subplot(1, 2, 1), plot(p_upper(1:end - 1, 1) * mm_per_pixel, dp_upper(:, 1) * mm_per_pixel, '.');
+        title('Upper Layer');
+        subplot(1, 2, 2), plot(p_lower(1:end - 1, 1) * mm_per_pixel, dp_lower(:, 1) * mm_per_pixel, '.');
+        title('Lower Layer');
+
+        if (doPlotDistribution == true)
+            plotDistribution(dp_upper, dp_lower, distanceUpper, distanceLower)
+        end
+
+        keyboard;
+
+    end
+
+    function [] = plotDistribution(dp_upper, dp_lower, distanceUpper, distanceLower)
         figure;
         %% Plotte die Distributionen der Abstände mit Zwischenabstand
-
-        subplot(2, 2, 1), histo_upper_complete = histogram(nonzeros(dp_upper), 100, 'Normalization', 'pdf');
+        sgtitle('Distributionen der Abstaende SteelPly')
+        subplot(2, 2, 1), histo_upper_complete = histogram(nonzeros(dp_upper) * mm_per_pixel, 100, 'Normalization', 'pdf');
+        title('Histogram Upper Layer With Neighbouring Steelwires');
         hold on
-        y = nonzeros(dp_upper);
+        y = nonzeros(dp_upper) * mm_per_pixel;
         y(y < 10) = NaN;
         y = sort(y);
-        mu = distanceUpper;
+        mu = distanceUpper * mm_per_pixel;
         sigma = 4;
         f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
         plot(y, f, 'LineWidth', 1.5)
         hold off
-        subplot(2, 2, 2), histo_lower_complete = histogram(nonzeros(dp_lower), 100, 'Normalization', 'pdf');
-
+        subplot(2, 2, 2), histo_lower_complete = histogram(nonzeros(dp_lower) * mm_per_pixel, 100, 'Normalization', 'pdf');
+        title('Histogram Lower Layer With Neighbouring Steelwires');
         hold on
-        y = nonzeros(dp_lower);
+        y = nonzeros(dp_lower) * mm_per_pixel;
         y(y < 10) = NaN;
         y = sort(y);
-        mu = distanceLower;
+        mu = distanceLower * mm_per_pixel;
         sigma = 4;
         f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
         plot(y, f, 'LineWidth', 1.5)
@@ -257,27 +298,28 @@ function [] = Reifenquerschnitt()
         dp_upper(dp_upper < 11) = NaN;
         dp_lower(dp_lower < 11) = NaN;
 
-        subplot(2, 2, 3), histo_A_upper = histogram(nonzeros(dp_upper), 100, 'Normalization', 'pdf');
+        subplot(2, 2, 3), histo_A_upper = histogram(nonzeros(dp_upper) * mm_per_pixel, 100, 'Normalization', 'pdf');
+        title('without Neighbour Wire Distance');
         hold on
-        y = nonzeros(dp_upper);
+        y = nonzeros(dp_upper) * mm_per_pixel;
         y(y < 10) = NaN;
         y = sort(y);
-        mu = distanceUpper;
+        mu = distanceUpper * mm_per_pixel;
         sigma = 4;
         f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
         plot(y, f, 'LineWidth', 1.5)
         hold off
-        subplot(2, 2, 4), histo_A_lower = histogram(nonzeros(dp_lower), 100, 'Normalization', 'pdf');
+        subplot(2, 2, 4), histo_A_lower = histogram(nonzeros(dp_lower) * mm_per_pixel, 100, 'Normalization', 'pdf');
+        title('without Neighbour Wire Distance');
         hold on
-        y = nonzeros(dp_lower);
+        y = nonzeros(dp_lower) * mm_per_pixel;
         y(y < 10) = NaN;
         y = sort(y);
-        mu = distanceLower;
+        mu = distanceLower * mm_per_pixel;
         sigma = 4;
         f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
         plot(y, f, 'LineWidth', 1.5)
         hold off
-        keyboard;
 
     end
 
@@ -339,7 +381,7 @@ function [] = Reifenquerschnitt()
     end
 
     %% function der als callback in figure den ROI (mithilfe delta) anpasst mit arrow up/down
-    function [] = fh_kpfcn(H, E)
+    function [] = functionHandle_KeyPressFcn(H, E)
         % Figure keypressfcn
         switch E.Key
 
@@ -361,15 +403,21 @@ function [] = Reifenquerschnitt()
         img(img > steel_grayvalue) = 30;
         thresh_img = img;
 
-        % check ob CNN schonmal denoised hat
-        mkdir('denoised')
+        if (use_denoise_CNN)
+            mkdir('denoised')
 
-        if (~isfile(fullfile('denoised', [name '.mat'])))
-            net = denoisingNetwork('DnCNN');
-            denoised_img = denoiseImage(thresh_img, net);
-            save(fullfile('denoised', name), 'denoised_img')
+            % check ob CNN schonmal denoised hat
+            if (~isfile(fullfile('denoised', [name '.mat'])))
+                net = denoisingNetwork('DnCNN');
+                denoised_img = denoiseImage(thresh_img, net);
+                save(fullfile('denoised', name), 'denoised_img')
+            else
+                load(fullfile('denoised', [name '.mat']), 'denoised_img')
+
+            end
+
         else
-            load(fullfile('denoised', [name '.mat']), 'denoised_img')
+            denoised_img = thresh_img;
         end
 
         figure, imshowpair(thresh_img, denoised_img, 'montage');
@@ -386,7 +434,7 @@ function [] = Reifenquerschnitt()
         close all
 
         %% ROI Spline auswaehlen
-        figureHandle = figure('keypressfcn', @fh_kpfcn);
+        figureHandle = figure('keypressfcn', @functionHandle_KeyPressFcn);
         imshow(img);
         figureHandle.WindowState = 'fullscreen';
         axis manual;
@@ -396,10 +444,10 @@ function [] = Reifenquerschnitt()
 
         mkdir('selectedPoints');
 
-        if (isfile(fullfile('selectedPoints', [name '.mat'])))
+        if (isfile(fullfile('selectedPoints', [name '.mat'])) && use_old_spline)
             load(fullfile('selectedPoints', [name '.mat']), 'X', 'Y')
         else
-            title(' Zoome und dr�cke Enter');
+            title(' Zoome und drcke Enter');
             zoom on;
             waitfor(gcf, 'CurrentCharacter', char(13))
             zoom reset
@@ -452,10 +500,18 @@ function [] = Reifenquerschnitt()
         hold on
         plot(centers(:, 1), centers(:, 2), '.', 'LineWidth', 2, 'XDataSource', 'centers(:,1)', 'YDataSource', 'centers(:,2)', 'ZDataSource', 'radii');
         %% hier kann im Plot falsche Daten mit Tool -->brusch +link entfernt werden
-        title('Loesche ungewollte Mittelpunkte mit Link und Brush Tool bei Bedarf,>>K dbcont eingeben,Press Done');
+        title('Loesche ungewollte Mittelpunkte mit Link und Brush Tool bei Bedarf ACHTUNG: Rechtsklick und Remove! ');
+        warndlg('L�schen von Outliern nur mit Rechtsclick --> Remove (im Debug Mode)');
 
         linkdata on;
         brush on;
+
+        %% da brushing nur im debug modus funktioniert.
+
+        % nachdem continue gedrückt wurde sollte die Variable bearbeitet worden sein.?
+
+        % !!! uiwait
+        % Debug Cont.
         doneHandle = uicontrol('String', 'Done', 'Callback', {@evaluateCapPlyData}');
 
         keyboard;
@@ -478,45 +534,60 @@ function [] = Reifenquerschnitt()
             centers_dst_filtered = centers_dst;
             centers_dst_filtered(abs(centers_dst_filtered) > distance_threshold) = NaN;
             distance_cap_median = median(centers_dst_filtered, 'omitnan')
-            distance_cap_mean = median(centers_dst_filtered, 'omitnan')
+            distance_cap_median_mm = distance_cap_median * mm_per_pixel
+
+            distance_cap_mean = mean(centers_dst_filtered, 'omitnan')
+            distance_cap_mean_mm = distance_cap_mean * mm_per_pixel
 
             euklid_norm_median = norm(distance_cap_median)
+            euklid_norm_median_mm = euklid_norm_median * mm_per_pixel
             euklid_norm_mean = norm(distance_cap_mean)
+            euklid_norm_mean_mm = euklid_norm_mean * mm_per_pixel
 
             Area = pi * radii.^2;
+            Area_mm = Area * Area * mm_per_pixel * mm_per_pixel;
             Area_mean = mean(Area, 'omitnan')
+            Area_mean_mm = Area_mean * Area_mean * mm_per_pixel * mm_per_pixel
             Area_median = median(Area, 'omitnan')
+            Area_median_mm = Area_median * Area_median * mm_per_pixel * mm_per_pixel
             quiver(sorted_centers(1:end - 1, 1), sorted_centers(1:end - 1, 2), centers_dst_filtered(:, 1), centers_dst_filtered(:, 2), 0, 'Color', 'b');
             title(['Blue are filtered distances with threshold: ' sprintf('%d', distance_threshold)]);
 
-            figure;
-            subplot(2, 2, 1), histo_dist_X = histogram(nonzeros(centers_dst_filtered(:, 1)), 50, 'Normalization', 'pdf');
-            hold on
-            y = nonzeros(centers_dst_filtered(:, 1));
-            y = sort(y);
-            mu = distance_cap_mean(1);
-            sigma = 4;
-            f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
-            plot(y, f, 'LineWidth', 1.5)
-            title('Histogram der gefilterten Abstaende in X Richtung')
-            hold off
-
-            subplot(2, 2, 2), histo_dist_X = histogram(nonzeros(centers_dst_filtered(:, 2)), 50, 'Normalization', 'pdf');
-            hold on
-            y = nonzeros(centers_dst_filtered(:, 2));
-            y = sort(y);
-            mu = distance_cap_mean(2);
-            sigma = 8;
-            f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
-            plot(y, f, 'LineWidth', 1.5)
-            title('Histogram der gefilterten Abstaende in Y Richtung')
-            hold off
-
-            subplot(2, 2, 4), histo_Area = histogram(nonzeros(Area), 50, 'Normalization', 'pdf');
-            title(sprintf('Mean: %f Median: %f', Area_mean, Area_median));
+            if (doPlotDistribution == true)
+                plotDistributionCapPly(centers_dst_filtered, distance_cap_mean, Area, Area_mean, Area_median)
+            end
 
             keyboard;
         end
+
+    end
+
+    function [] = plotDistributionCapPly(centers_dst_filtered, distance_cap_mean, Area, Area_mean, Area_median)
+        figure;
+        subplot(2, 2, 1), histo_dist_X = histogram(nonzeros(centers_dst_filtered(:, 1)) * mm_per_pixel, 50, 'Normalization', 'pdf');
+        hold on
+        y = nonzeros(centers_dst_filtered(:, 1) * mm_per_pixel);
+        y = sort(y);
+        mu = distance_cap_mean(1);
+        sigma = 4;
+        f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
+        plot(y, f, 'LineWidth', 1.5)
+        title('Histogram der gefilterten Abstaende in X Richtung');
+        hold off
+
+        subplot(2, 2, 2), histo_dist_X = histogram(nonzeros(centers_dst_filtered(:, 2)) * mm_per_pixel, 50, 'Normalization', 'pdf');
+        hold on
+        y = nonzeros(centers_dst_filtered(:, 2) * mm_per_pixel);
+        y = sort(y);
+        mu = distance_cap_mean(2);
+        sigma = 8;
+        f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
+        plot(y, f, 'LineWidth', 1.5);
+        title('Histogram der gefilterten Abstaende in Y Richtung');
+        hold off
+
+        subplot(2, 2, 4), histo_Area = histogram(nonzeros(Area), 50, 'Normalization', 'pdf');
+        title(sprintf('Mean: %f Median: %f', Area_mean, Area_median));
 
     end
 
