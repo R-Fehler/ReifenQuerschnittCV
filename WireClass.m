@@ -2,45 +2,54 @@
 
 classdef WireClass
 
-    properties (Constant = true)
-        DPI = 600%default value is 600dpi
-    end
-
     properties
         % strings
         Material
+        Name
         %scalars
-        % metrics: numerical Vectors
+        DPI = 600%default value is 600dpi
+        DistanceThreshold = 30%[px] threshold to ignore neighbouring wires
+        % numerical Vectors in [px]
         PositionInImage% X,Y Coordinate
-        DistanceToNextWire
         Radius
+        % matrices
+        Image
+
     end
 
     properties (Dependent = true)
-        CrosssectionArea%depends on CS Length
+        MMPerPx
+        CrossSectionA
+        DistanceToNextW
+
     end
 
     methods
 
-        function wp = WirePlyClass(material, position, distanceToNext, radius, dpi)
+        function obj = WirePlyClass(image, material, name, dpi)
 
-            if nargin > 0
+            if nargin == 4
+                obj.Image = image;
+                obj.Material = material;
+                obj.DPI = dpi;
+                obj.Name = name;
 
-                Material = material;
-                PositionInImage = position;
-                DistanceToNextWire = distanceToNext;
-                Radius = radius;
-                DPI = dpi;
+            else
+                error('image,material, name, dpi not in constructor call');
             end
 
         end
 
-        function crossSectionArea = get.CrosssectionArea(obj)
-            crosssectionArea = pi * radius.^2;
+        function out = get.MMPerPx(obj)
+            out = 25.4 / obj.DPI;
         end
 
-        function = set.CrosssectionArea(obj)
-            error('cannot set CrosssectionArea because its dependent on radius');
+        function crossSectionArea = get.CrossSectionA(obj)
+            crossSectionArea = CrosssectionArea;
+            crossSectionArea.Px = pi * obj.Radius.^2; % number of pixels in cicle
+            crossSectionArea.MM = crossSectionArea.Px * obj.MMPerPx.^2; % px*mm/px*mm/px with px^2=px
+            crossSectionArea.MeanMM = mean(crossSectionArea.MM, 'omitnan');
+            crossSectionArea.MedianMM = median(crossSectionArea.MM, 'omitnan');
         end
 
         function obj = set.Material(obj, material)
@@ -57,44 +66,45 @@ classdef WireClass
 
         function obj = set.PositionInImage(obj, positionInImage)
 
-            if (checkDimension(positionInImage))
-                obj.PositionInImage = positionInImage;
+            obj.PositionInImage = positionInImage;
+
+        end
+
+        function out = get.DistanceToNextW(obj)
+            out = DistanceToNextWire;
+            %         VectorsPx
+            %         VectorsMM
+            %         MedianVector
+            %         MedianNorm
+            %         MeanVector
+            %         MeanNorm
+            srt_cntrs = sortrows(obj.PositionInImage);
+            cntrs_dst = zeros(size(srt_cntrs, 1) - 1, 2);
+
+            for nn = 1:(size(srt_cntrs, 1) - 1)
+                cntrs_dst(nn, 1) = srt_cntrs(nn + 1, 1) - srt_cntrs(nn, 1);
+                cntrs_dst(nn, 2) = srt_cntrs(nn + 1, 2) - srt_cntrs(nn, 2);
             end
 
-        end
-
-        function obj = set.DistanceToNextWire(obj, distanceToNext)
-
-            if (checkDimension(distanceToNext))
-                obj.DistanceToNextWire = distanceToNext;
-            end
-
-        end
-
-        function string = toString(obj)
-            string = '';
+            out.VectorsPx = cntrs_dst;
+            out.VectorsPx(abs(out.VectorsPx) > obj.DistanceThreshold) = NaN;
+            out.VectorsMM = out.VectorsPx * obj.MMPerPx;
+            out.MedianVector = median(out.VectorsMM, 'omitnan');
+            out.MedianNorm = norm(out.MedianVector);
+            out.MeanVector = mean(out.VectorsMM, 'omitnan');
+            out.MeanNorm = norm(out.MeanVector);
 
         end
 
-        function  = disp(obj)
-            % Overload disp() for formatting
-            disp(obj)
-        end
-
-        function [position, radius, diameter, crosssectionArea, distanceToNextWire] = metricsInMilimeter(obj)
-            mmPerPx = 25.4 / obj.DPI;
-            position = obj.Position .* mmPerPx;
-            radius = obj.Radius .* mmPerPx;
-            diameter = radius .* 2;
-            crosssectionArea = obj.CrosssectionArea .* mmPerPx;
-            distanceToNextWire = obj.DistanceToNextWire .* mmPerPx;
-
-        end
-
-        function [isValid] = checkDimension(input)
-
-            isValid = (isnumeric(input) || size(input, 2) == 2)
-
+        % plots quivers on top of original image
+        function fh = quiverPlot(obj)
+            sorted_centers = sortrows(obj.PositionInImage);
+            centers_dst_filtered = obj.DistanceToNextW.VectorsPx;
+            %             figure;
+            %             hold on
+            title(sprintf('QuiverPlot of %s: recognized wires and distances', obj.Name));
+            fh = quiver(sorted_centers(1:end - 1, 1), sorted_centers(1:end - 1, 2), centers_dst_filtered(:, 1), centers_dst_filtered(:, 2), 0, 'Color', 'b');
+            hold off
         end
 
     end

@@ -27,10 +27,23 @@ function [] = Reifenquerschnitt()
     end
 
     dpi_value = str2num(dpi_string);
-    mm_per_pixel = 25.4 / dpi_value;
-%     mm_per_pixel = 25.4/600;
     img = imread(path);
 
+    cap=WireClass;
+    uSteel=WireClass;
+    lSteel=WireClass;
+    cap.Material='polymer';
+    uSteel.Material='steel';
+    lSteel.Material='steel';
+    cap.Image=img;
+    uSteel.Image=img;
+    lSteel.Image=img;
+    cap.Name=regexp(name, '.*(?=_\d*dpi)', 'match', 'once');
+    uSteel.Name=cap.Name;
+    lSteel.Name=cap.Name;
+    
+    cap.DPI=dpi_value;
+    
     findCapPly(img, name);
 
     figHandle = figure('keypressfcn', @functionHandle_KeyPressFcn), imshow(img);
@@ -518,44 +531,46 @@ function [] = Reifenquerschnitt()
 
         function [] = evaluateCapPlyData(src, evt)
             viscircles(centers, radii, 'EdgeColor', 'g', 'LineWidth', 1);
-
-            sorted_centers = sortrows(centers);
-
-            for index_nn = 1:(size(sorted_centers, 1) - 1)
-
-                centers_dst(index_nn, 1) = sorted_centers(index_nn + 1, 1) - sorted_centers(index_nn, 1);
-                centers_dst(index_nn, 2) = sorted_centers(index_nn + 1, 2) - sorted_centers(index_nn, 2);
-
-            end
-
-            quiver(sorted_centers(1:end - 1, 1), sorted_centers(1:end - 1, 2), centers_dst(:, 1), centers_dst(:, 2), 0);
-
-            distance_threshold = 30%[px]
-            centers_dst_filtered = centers_dst;
-            centers_dst_filtered(abs(centers_dst_filtered) > distance_threshold) = NaN;
-            distance_cap_median = median(centers_dst_filtered, 'omitnan')
-            distance_cap_median_mm = distance_cap_median * mm_per_pixel
-
-            distance_cap_mean = mean(centers_dst_filtered, 'omitnan')
-            distance_cap_mean_mm = distance_cap_mean * mm_per_pixel
-
-            euklid_norm_median = norm(distance_cap_median)
-            euklid_norm_median_mm = euklid_norm_median * mm_per_pixel
-            euklid_norm_mean = norm(distance_cap_mean)
-            euklid_norm_mean_mm = euklid_norm_mean * mm_per_pixel
-
-            Area = pi * radii.^2;
-            Area_mm = Area * Area * mm_per_pixel * mm_per_pixel;
-            Area_mean = mean(Area, 'omitnan')
-            Area_mean_mm = Area_mean * Area_mean * mm_per_pixel * mm_per_pixel
-            Area_median = median(Area, 'omitnan')
-            Area_median_mm = Area_median * Area_median * mm_per_pixel * mm_per_pixel
-            quiver(sorted_centers(1:end - 1, 1), sorted_centers(1:end - 1, 2), centers_dst_filtered(:, 1), centers_dst_filtered(:, 2), 0, 'Color', 'b');
-            title(['Blue are filtered distances with threshold: ' sprintf('%d', distance_threshold)]);
-
-            if (doPlotDistribution == true)
-                plotDistributionCapPly(centers_dst_filtered, distance_cap_mean, Area, Area_mean, Area_median)
-            end
+            cap.Radius=radii;
+            cap.PositionInImage=centers;
+           
+            
+            cap.quiverPlot();
+            save('test','cap');
+     
+            
+         
+            
+%             quiver(sorted_centers(1:end - 1, 1), sorted_centers(1:end - 1, 2), centers_dst(:, 1), centers_dst(:, 2), 0);
+%             
+%             distance_threshold = 30%[px]
+%             centers_dst_filtered = centers_dst;
+%             centers_dst_filtered(abs(centers_dst_filtered) > distance_threshold) = NaN;
+% 
+%             
+%             distance_cap_median = median(centers_dst_filtered, 'omitnan')
+%             distance_cap_median_mm = distance_cap_median * mm_per_pixel
+% 
+%             distance_cap_mean = mean(centers_dst_filtered, 'omitnan')
+%             distance_cap_mean_mm = distance_cap_mean * mm_per_pixel
+% 
+%             euklid_norm_median = norm(distance_cap_median)
+%             euklid_norm_median_mm = euklid_norm_median * mm_per_pixel
+%             euklid_norm_mean = norm(distance_cap_mean)
+%             euklid_norm_mean_mm = euklid_norm_mean * mm_per_pixel
+% 
+%             Area = pi * radii.^2;
+%             Area_mm = Area * Area * mm_per_pixel * mm_per_pixel;
+%             Area_mean = mean(Area, 'omitnan')
+%             Area_mean_mm = Area_mean * Area_mean * mm_per_pixel * mm_per_pixel
+%             Area_median = median(Area, 'omitnan')
+%             Area_median_mm = Area_median * Area_median * mm_per_pixel * mm_per_pixel
+%             quiver(sorted_centers(1:end - 1, 1), sorted_centers(1:end - 1, 2), centers_dst_filtered(:, 1), centers_dst_filtered(:, 2), 0, 'Color', 'b');
+%             title(['Blue are filtered distances with threshold: ' sprintf('%d', distance_threshold)]);
+% 
+%             if (doPlotDistribution == true)
+%                 plotDistributionCapPly(centers_dst_filtered, distance_cap_mean, Area, Area_mean, Area_median)
+%             end
 
             keyboard;
         end
