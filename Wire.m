@@ -1,13 +1,14 @@
 %% Class of round wires with respect to dpi value
 
 classdef Wire
+          
 
     properties
         % strings
         FileName
         Name
         % scalars
-        LayerLevel=1 % in Image upper layer 1, lower layer 2 even lower 3 ... 
+        LayerLevel = 1% in Image upper layer 1, lower layer 2 even lower 3 ...
         DPI = 600%default value is 600dpi
         DistanceThreshold = 30%[px] threshold to ignore neighbouring wires
         SteelGrayvalueThreshold = 60
@@ -23,9 +24,10 @@ classdef Wire
         ImageUsedForCV
 
         % booleans
-        UseOldSplie
+        UseOldSpline
         %Objects
         WireMaterial
+
 
     end
 
@@ -36,11 +38,27 @@ classdef Wire
         PositionInImageMM
         % Objects
         CrossSectionA
-        DistanceToNextW 
+        DistanceToNextW
 
     end
 
     methods
+
+        %% Constructor
+
+        function output = copyObject(input, output)
+            C = metaclass(input);
+            P = C.Properties;
+
+            for k = 1:length(P)
+
+                if ~P{k}.Dependent
+                    output.(P{k}.Name) = input.(P{k}.Name);
+                end
+
+            end
+
+        end
 
         %% GETTER / SETTER
         function out = get.MMPerPx(obj)
@@ -59,8 +77,6 @@ classdef Wire
             crossSectionArea.MeanMM = mean(crossSectionArea.MM, 'omitnan');
             crossSectionArea.MedianMM = median(crossSectionArea.MM, 'omitnan');
         end
-
-
 
         function obj = set.PositionInImage(obj, positionInImage)
 
@@ -93,7 +109,9 @@ classdef Wire
             out.MeanNorm = norm(out.MeanVector);
 
         end
+
         %% Methods
+
         % plots quivers on top of original image
         function fh = quiverPlot(obj)
             srt_cntrs = sortrows(obj.PositionInImage);
@@ -107,26 +125,23 @@ classdef Wire
         end
 
         function obj = initData(obj)
-            persistent firstCall
-            if(isempty(firstCall))
-                firstCall=true;
-            else
-                firstCall=false;
+          
+            if (isempty(obj.ImageUsedForCV))
+                obj.ImageUsedForCV = obj.ImageOriginal;
             end
-            if(firstCall)
-                obj.ImageUsedForCV=obj.ImageOriginal;
+
+            if (obj.WireMaterial == Material.Steel)
+                obj.SensitivityLvL = 0.95;
+                obj.MaxNoOfCircles = 450;
+                obj.MinimumRadius = 3 * 600 / obj.DPI;
+                obj.MaximumRadius = 7 * 600 / obj.DPI;
             end
-            if(obj.WireMaterial==Material.Steel) 
-                obj.SensitivityLvL=0.95;
-                obj.MaxNoOfCircles=450;
-                obj.MinimumRadius=3*600/obj.DPI;
-                obj.MaximumRadius=7*600/obj.DPI;
-            end
-            if(obj.WireMaterial==Material.Polymer) 
-                obj.SensitivityLvL=0.95;
-                obj.MaxNoOfCircles=60;
-                obj.MinimumRadius=6*600/obj.DPI;
-                obj.MaximumRadius=10*600/obj.DPI;
+
+            if (obj.WireMaterial == Material.Polymer)
+                obj.SensitivityLvL = 0.95;
+                obj.MaxNoOfCircles = 60;
+                obj.MinimumRadius = 6 * 600 / obj.DPI;
+                obj.MaximumRadius = 10 * 600 / obj.DPI;
             end
 
             [~, ~, centers, radii] = segmentImageCircles(obj.ImageUsedForCV, ...
@@ -177,14 +192,14 @@ classdef Wire
             figure, imshowpair(thresholded_img, contrast_img, 'montage');
             title('Original Image (left) and Contrast Enhanced Image (right)');
 
-            [BW_Mask_afterThreshold, masked_contrast_img] = obj.segmentImageAdaptiveThreshold(contrast_img);
+            [BW_Mask_afterThreshold, masked_contrast_img] = Wire.segmentImageAdaptiveThreshold(contrast_img);
             figure, imshowpair(BW_Mask_afterThreshold, masked_contrast_img, 'montage');
             title('BW_Mask_afterThreshold (left) and masked_contrast_img (right)');
 
             close all
 
             % ROI Spline auswaehlen
-            figureHandle = figure('keypressfcn', @functionHandle_KeyPressFcn);
+            figureHandle = figure('keypressfcn', @Wire.functionHandle_KeyPressFcn);
             imshow(img);
             figureHandle.WindowState = 'fullscreen';
             axis manual;
@@ -202,7 +217,7 @@ classdef Wire
                 waitfor(gcf, 'CurrentCharacter', char(13))
                 zoom reset
                 zoom off
-                [X, Y] = selectPoints(figureHandle);
+                [X, Y] = Wire.selectPoints(figureHandle);
                 save(fullfile('selectedPoints', name), 'X', 'Y')
             end
 
@@ -211,7 +226,7 @@ classdef Wire
             hold on;
             plot(X, Y, 'o', xgrid, yspline);
 
-            plotEinhuellende(figureHandle, xgrid, yspline);
+            Wire.plotEinhuellende(figureHandle, xgrid, yspline);
             newmask = false(size(img, 1), size(img, 2));
 
             for xn = 1:1:length(img(1, :))
@@ -235,170 +250,120 @@ classdef Wire
             figure, imshowpair(bw_img_masked_withSplineROI, bw_img_masked_withSplineROI_Opened, 'montage');
             title('normal vs opened')
             obj.ImageUsedForCV = bw_img_masked_withSplineROI_Opened;
+            obj = obj.initData();
+            obj = obj.removeOutliers();
+
+        end
+
+        function [obj, upperLayerObj, lowerLayerObj] = splitSteelLayers(obj)
+            global delta;
             obj=obj.initData();
-            obj=obj.removeOutliers();
 
-        end
-        
-        function [obj,lowerLayerObj] =splitSteelLayers(obj)
-%             obj=obj.initData();
-            centers=obj.PositionInImage;
-            radii=obj.Radius;
-            img=obj.ImageOriginal;
+            centers = obj.PositionInImage;
+            radii = obj.Radius;
+            img = obj.ImageOriginal;
             p = polyfit(centers(:, 1), centers(:, 2), 2);
-    n = length(img(1, :));
-    x1 = linspace(0, length(img(1, :)), n);
-    y1 = polyval(p, x1);
-    figHandle=plot(img);
-    plot(x1, y1, 'LineWidth', 2, 'Color', 'green');
+            n = length(img(1, :));
+            x1 = linspace(0, length(img(1, :)), n);
+            y1 = polyval(p, x1);
+            
+              figureHandle = figure('keypressfcn', @Wire.functionHandle_KeyPressFcn);
+            imshow(img);
+            figureHandle.WindowState = 'fullscreen';
+            hold on;
+            plot(x1, y1, 'LineWidth', 2, 'Color', 'green');
 
-    %% eine manuelle ROI ausw�hlen (Delta Kriterium in |y| )
-    plotEinhuellende(figHandle, x1, y1);
-    close gcf;
+            %% eine manuelle ROI ausw�hlen (Delta Kriterium in |y| )
+            Wire.plotEinhuellende(figureHandle, x1, y1);
+            close gcf;
 
-    %% Eine Maske mit dem neuen ROI erstellen
-    mask = false(size(img, 1), size(img, 2));
+            %% Eine Maske mit dem neuen ROI erstellen
+            mask = false(size(img, 1), size(img, 2));
 
-    for xx = 1:length(img(1, :))
+            for xx = 1:length(img(1, :))
 
-        for yy = 1:length(img(:, 1))
+                for yy = 1:length(img(:, 1))
 
-            if (abs(yy - y1(xx)) <= delta)
-                mask(yy, xx) = true;
-            end
-
-        end
-
-    end
-
-    %% entfernen der Outliers (Kreise ausserhalb des ROIs)
-    new_centers = [];
-    new_radii = [];
-
-    for nn = 1:size(centers, 1)
-
-        if mask(round(centers(nn, 2)), round(centers(nn, 1))) == true
-            new_centers = cat(1, new_centers, centers(nn, :));
-            new_radii = cat(1, new_radii, radii(nn, :));
-        end
-
-    end
-    obj.PositionInImage=new_centers;
-    obj.Radius=new_radii;
-    
-    img_masked_withPolyROI = img;
-    img_masked_withPolyROI(~mask) = 0;
-    obj.ImageUsedForCV=img_masked_withPolyROI;
-
-    figHandle = figure, imshow(img_masked_withPolyROI);
-    hold on
-
-    %% neuer Polyfit mit deg=6 diesmal ohne Outliers
-    p = polyfit(new_centers(:, 1), new_centers(:, 2), 6);
-    n = length(img(1, :));
-    x1 = linspace(0, length(img(1, :)), n);
-    y1 = polyval(p, x1);
-    
-%     obj=obj.removeOutliers();
-
-        upper_centers = [];
-        upper_radii = [];
-        lower_centers = [];
-        lower_radii = [];
-
-        for nn = 1:size(new_centers, 1)
-
-            if new_centers(nn, 2) < y1(round(new_centers(nn, 1)))
-                upper_centers = cat(1, upper_centers, new_centers(nn, :));
-                upper_radii = cat(1, upper_radii, new_radii(nn));
-            end
-
-            if new_centers(nn, 2) >= y1(round(new_centers(nn, 1)))
-                lower_centers = cat(1, lower_centers, new_centers(nn, :));
-                lower_radii = cat(1, lower_radii, new_radii(nn));
-            end
-
-        end
-        
-        
-        figure,imshow(obj.ImageOriginal);
-        hold on;
-
-        plot(upper_centers(:, 1), upper_centers(:, 2), 'x', 'LineWidth', 2);
-        plot(lower_centers(:, 1), lower_centers(:, 2), 'x', 'LineWidth', 2);
-        
-        D_s_upper = upper_radii * 2;
-        D_s_upper_avg = mean(D_s_upper);
-        D_s_lower = lower_radii * 2;
-        D_s_lower_avg = mean(D_s_lower);
-        
-      
-        
-        % mittelpunkte upper stahl zwischen beiden Draehten
-        for nn = 1:size(upper_centers, 1)
-
-            for mm = 1:size(upper_centers, 1)
-
-                if (norm(upper_centers(nn) - upper_centers(mm)) < 1.5 * D_s_upper_avg && mm ~= nn)
-
-                    upper_avg_centers(nn, 1) = (upper_centers(nn, 1) + upper_centers(mm, 1)) / 2;
-                    upper_avg_centers(nn, 2) = (upper_centers(nn, 2) + upper_centers(mm, 2)) / 2;
+                    if (abs(yy - y1(xx)) <= delta)
+                        mask(yy, xx) = true;
+                    end
 
                 end
 
             end
 
-            if upper_avg_centers(nn, 1) == 0%% wenn nur ein kreis erkannt wird setzte diesen als  Mittelpunkt
-                upper_avg_centers(nn, 1) = upper_centers(nn, 1);
-                upper_avg_centers(nn, 2) = upper_centers(nn, 2);
-            end
+            %% entfernen der Outliers (Kreise ausserhalb des ROIs)
+            new_centers = [];
+            new_radii = [];
 
-        end
-        
-        % abst�nde upper stahl  � zwischen beiden Draehten
-        sorted_upper_avg_centers = sortrows(upper_avg_centers);
+            for nn = 1:size(centers, 1)
 
-        for nn = 1:(size(upper_avg_centers, 1) - 1)
-
-            upper_avg_centers_dst(nn, 1) = sorted_upper_avg_centers(nn + 1, 1) - sorted_upper_avg_centers(nn, 1);
-            upper_avg_centers_dst(nn, 2) = sorted_upper_avg_centers(nn + 1, 2) - sorted_upper_avg_centers(nn, 2);
-
-        end
-
-        % mittelpunkte lower stahl  � zwischen beiden Draehten
-        for nn = 1:size(lower_centers, 1)
-
-            for mm = 1:size(lower_centers, 1)
-
-                if (norm(lower_centers(nn) - lower_centers(mm)) < 1.5 * D_s_lower_avg && mm ~= nn)
-
-                    lower_avg_centers(nn, 1) = (lower_centers(nn, 1) + lower_centers(mm, 1)) / 2;
-                    lower_avg_centers(nn, 2) = (lower_centers(nn, 2) + lower_centers(mm, 2)) / 2;
-
+                if mask(round(centers(nn, 2)), round(centers(nn, 1))) == true
+                    new_centers = cat(1, new_centers, centers(nn, :));
+                    new_radii = cat(1, new_radii, radii(nn, :));
                 end
 
             end
 
-            if lower_avg_centers(nn, 1) == 0%% wenn nur ein kreis erkannt wird setzte diesen als  Mittelpunkt
-                lower_avg_centers(nn, 1) = lower_centers(nn, 1);
-                lower_avg_centers(nn, 2) = lower_centers(nn, 2);
+            obj.PositionInImage = new_centers;
+            obj.Radius = new_radii;
+
+            img_masked_withPolyROI = img;
+            img_masked_withPolyROI(~mask) = 0;
+            obj.ImageUsedForCV = img_masked_withPolyROI;
+
+
+            %% neuer Polyfit mit deg=6 diesmal ohne Outliers
+            p = polyfit(new_centers(:, 1), new_centers(:, 2), 6);
+            n = length(img(1, :));
+            x1 = linspace(0, length(img(1, :)), n);
+            y1 = polyval(p, x1);
+
+                  obj=obj.removeOutliers();
+            new_radii = obj.Radius;
+            new_centers = obj.PositionInImage;
+
+            upper_centers = [];
+            upper_radii = [];
+            lower_centers = [];
+            lower_radii = [];
+
+            for nn = 1:size(new_centers, 1)
+
+                if new_centers(nn, 2) < y1(round(new_centers(nn, 1)))
+                    upper_centers = cat(1, upper_centers, new_centers(nn, :));
+                    upper_radii = cat(1, upper_radii, new_radii(nn));
+                end
+
+                if new_centers(nn, 2) >= y1(round(new_centers(nn, 1)))
+                    lower_centers = cat(1, lower_centers, new_centers(nn, :));
+                    lower_radii = cat(1, lower_radii, new_radii(nn));
+                end
+
             end
 
-        end
+            upperLayerObj = DoubleWire(obj);
+            upperLayerObj.PositionInImage = upper_centers;
+            upperLayerObj.Radius = upper_radii;
 
-        % abst�nde lower stahl  � zwischen beiden Draehten
-        sorted_lower_avg_centers = sortrows(lower_avg_centers);
+            lowerLayerObj = DoubleWire(obj);
+            lowerLayerObj.PositionInImage = lower_centers;
+            lowerLayerObj.Radius = lower_radii;
+            lowerLayerObj.LayerLevel=2;
 
-        for nn = 1:(size(lower_avg_centers, 1) - 1)
+            figure, imshow(obj.ImageOriginal);
+            hold on;
 
-            lower_avg_centers_dst(nn, 1) = sorted_lower_avg_centers(nn + 1, 1) - sorted_lower_avg_centers(nn, 1);
-            lower_avg_centers_dst(nn, 2) = sorted_lower_avg_centers(nn + 1, 2) - sorted_lower_avg_centers(nn, 2);
+            plot(upper_centers(:, 1), upper_centers(:, 2), 'x', 'LineWidth', 2);
+            plot(lower_centers(:, 1), lower_centers(:, 2), 'x', 'LineWidth', 2);
+            hold off;
+    
+            
 
-        end
-        
-        
+
             
         end
+
     end
 
     %% Static Methods
@@ -452,9 +417,6 @@ classdef Wire
             % Figure keypressfcn
             global delta
 
-            if isempty(delta)
-                delta = 0;
-            end
 
             switch E.Key
 
@@ -472,10 +434,8 @@ classdef Wire
 
         function [] = plotEinhuellende(figurehandle, x1, y1)
             global delta
+            delta=0;
 
-            if isempty(delta)
-                delta = 0;
-            end
 
             while (true)
                 linehandle = plot(x1, y1 + delta, 'm--', x1, y1 - delta, 'm--');
