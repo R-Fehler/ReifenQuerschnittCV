@@ -50,8 +50,8 @@ function [] = Reifenquerschnitt()
 
     sensitivity = 0.95;
     maxN_Circles = 450;
-    minRad = 3; %% bei 96 dpi
-    maxRad = 7; %% bei 96 dpi
+    minRad = 3; 
+    maxRad = 7; 
     delta = 0;
 
     %% Kreise Segmentieren (Stahl)
