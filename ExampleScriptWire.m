@@ -35,6 +35,8 @@
     
     % returns [Wire,DoubleWire,DoubleWire]
     [steelPly,upperSteelPly,lowerSteelPly]=steelPly.splitSteelLayers();
+    upperSteelPly.Name='upperSteelPly';
+    lowerSteelPly.Name='lowerSteelPly';
     %% Save and Display Results
     capPly.plot();
     savefig('capPly');
