@@ -3,7 +3,7 @@ classdef DoubleWire < Wire
     %   Detailed explanation goes here
 
     properties
-
+        
     end
 
     properties (Dependent = true)
@@ -19,6 +19,7 @@ classdef DoubleWire < Wire
 
         function obj = DoubleWire(wire)
             obj@Wire();
+            obj.DistanceThresholdTuningValue=50;
 
             if (nargin ~= 0)
 
@@ -43,6 +44,7 @@ classdef DoubleWire < Wire
             end
 
         end
+        
 
         function out = get.DistanceToNextDoubleHelix(obj)
             out = DistanceToNextWire;
@@ -73,6 +75,7 @@ classdef DoubleWire < Wire
         function out = get.PositionOfDoubleHelix(obj)
             centers = obj.PositionInImage;
             D_s_upper_avg = mean(obj.Radius * 2, 'omitnan');
+            avgCenters = zeros(size(centers, 1), 2);
 
             for nn = 1:size(centers, 1)
 
@@ -96,7 +99,28 @@ classdef DoubleWire < Wire
 
             out = avgCenters;
         end
+        
+        function figurehandle=plotDoubleWire(obj)
+             figurehandle=figure;
+            imshow(obj.ImageOriginal);
 
+            hold on
+            plot(obj.PositionOfDoubleHelix(:, 1), obj.PositionOfDoubleHelix(:, 2), 'o', 'LineWidth', 2, 'XDataSource', 'obj.PositionOfDoubleHelix(:, 1)', 'YDataSource', 'obj.PositionOfDoubleHelix(:, 2)');
+            viscircles(obj.PositionInImage,obj.Radius);
+            obj.quiverPlotDoubleWire();
+        end
+
+    end
+    
+    methods(Access=private)
+         function fh = quiverPlotDoubleWire(obj)
+            srt_cntrs = sortrows(obj.PositionOfDoubleHelix);
+            cntrs_dst = obj.DistanceToNextDoubleHelix.VectorsPx;
+            hold on
+            title(sprintf('Plot of %s: recognized DoubleWires and distances', obj.Name));
+            fh = quiver(srt_cntrs(1:end - 1, 1), srt_cntrs(1:end - 1, 2), cntrs_dst(:, 1), cntrs_dst(:, 2), 0);
+            hold off
+        end
     end
 
 end

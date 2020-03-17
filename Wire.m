@@ -10,21 +10,22 @@ classdef Wire
         % scalars
         LayerLevel = 1% in Image upper layer 1, lower layer 2 even lower 3 ...
         DPI = 600%default value is 600dpi
-        DistanceThreshold = 30%[px] threshold to ignore neighbouring wires
         SteelGrayvalueThreshold = 60
         SensitivityLvL
         MaxNoOfCircles
         MinimumRadius
         MaximumRadius
+        DistanceThresholdTuningValue=40
         % numerical Vectors in [px]
         PositionInImage% X,Y Coordinate
         Radius
         % matrices
         ImageOriginal
+        ImageProcessed
         ImageUsedForCV
 
         % booleans
-        UseOldSpline
+        UseOldSpline=false
         %Objects
         WireMaterial
 
@@ -39,12 +40,24 @@ classdef Wire
         % Objects
         CrossSectionA
         DistanceToNextW
+        DistanceThreshold %[px] threshold to ignore neighbouring wires
+
 
     end
-
+    %% Public Methods
     methods
 
-        %% Constructor
+        %% Constructor (hier keiner)
+        function obj=Wire(img,dpi,filename,name,material)
+            if nargin==0
+            else
+                obj.ImageOriginal=img;
+                obj.DPI=dpi;
+                obj.FileName=filename;
+                obj.Name=name;
+                obj.WireMaterial=material;
+            end
+        end
 
         function output = copyObject(input, output)
             C = metaclass(input);
@@ -64,7 +77,12 @@ classdef Wire
         function out = get.MMPerPx(obj)
             out = 25.4 / obj.DPI;
         end
-
+        function out= get.DistanceThreshold(obj)
+            out=obj.DistanceThresholdTuningValue*obj.DPI/600;
+            % 40 is set because of exp. with example images
+            % with the Cap Ply Layer
+        end
+        
         function out = get.PositionInImageMM(obj)
             out = obj.PositionInImage * obj.MMPerPx;
         end
@@ -113,44 +131,9 @@ classdef Wire
         %% Methods
 
         % plots quivers on top of original image
-        function fh = quiverPlot(obj)
-            srt_cntrs = sortrows(obj.PositionInImage);
-            cntrs_dst = obj.DistanceToNextW.VectorsPx;
-            figure;
-            imshow(obj.ImageOriginal);
-            hold on
-            title(sprintf('QuiverPlot of %s: recognized wires and distances', obj.Name));
-            fh = quiver(srt_cntrs(1:end - 1, 1), srt_cntrs(1:end - 1, 2), cntrs_dst(:, 1), cntrs_dst(:, 2), 0, 'Color', 'b');
-            hold off
-        end
+ 
 
-        function obj = initData(obj)
-          
-            if (isempty(obj.ImageUsedForCV))
-                obj.ImageUsedForCV = obj.ImageOriginal;
-            end
-
-            if (obj.WireMaterial == Material.Steel)
-                obj.SensitivityLvL = 0.95;
-                obj.MaxNoOfCircles = 450;
-                obj.MinimumRadius = 3 * 600 / obj.DPI;
-                obj.MaximumRadius = 7 * 600 / obj.DPI;
-            end
-
-            if (obj.WireMaterial == Material.Polymer)
-                obj.SensitivityLvL = 0.95;
-                obj.MaxNoOfCircles = 60;
-                obj.MinimumRadius = 6 * 600 / obj.DPI;
-                obj.MaximumRadius = 10 * 600 / obj.DPI;
-            end
-
-            [~, ~, centers, radii] = segmentImageCircles(obj.ImageUsedForCV, ...
-                obj.SensitivityLvL, obj.MaximumRadius, obj.MinimumRadius, obj.MaxNoOfCircles);
-
-            obj.PositionInImage = centers;
-            obj.Radius = radii;
-
-        end
+       
 
         function fighandle = plotDistanceToNextWire(obj)
             fighandle = figure;
@@ -164,22 +147,31 @@ classdef Wire
 
         function obj = removeOutliers(obj)
             figure, imshow(obj.ImageOriginal);
-
+            X=obj.PositionInImage(:, 1);
+            Y=obj.PositionInImage(:, 2);
+            Z=obj.Radius;
             hold on
-            plot(obj.PositionInImage(:, 1), obj.PositionInImage(:, 2), '.', 'LineWidth', 2, 'XDataSource', 'obj.PositionInImage(:, 1)', 'YDataSource', 'obj.PositionInImage(:, 2)', 'ZDataSource', 'obj.Radius');
+            plot(X,Y, 'o', 'LineWidth', 2, 'XDataSource', 'X', 'YDataSource', 'Y','ZDataSource', 'Z');
+            
             %% hier kann im Plot falsche Daten mit Tool -->brusch +link entfernt werden
             title('Loesche ungewollte Mittelpunkte mit Link und Brush Tool bei Bedarf ACHTUNG: Rechtsklick und Remove! ');
             warndlg('L�schen von Outliern nur mit Rechtsclick --> Remove (im Debug Mode)');
-
+         
             linkdata on;
             brush on;
 
             %% da brushing nur im debug modus funktioniert.
             doneHandle = uicontrol('String', 'Done', 'Callback', {@(src, evt)(com.mathworks.mlservices.MLExecuteServices.consoleEval('dbcont'))}');
             keyboard;
+            obj.PositionInImage=[X,Y];
+            obj.Radius=Z;
+            brush off;
+            linkdata off;
+            close gcf;
         end
 
         function obj = findCapPly(obj)
+            global delta;
             name = obj.FileName;
             img = obj.ImageOriginal;
 
@@ -195,7 +187,7 @@ classdef Wire
             [BW_Mask_afterThreshold, masked_contrast_img] = Wire.segmentImageAdaptiveThreshold(contrast_img);
             figure, imshowpair(BW_Mask_afterThreshold, masked_contrast_img, 'montage');
             title('BW_Mask_afterThreshold (left) and masked_contrast_img (right)');
-
+            obj.ImageProcessed=masked_contrast_img;
             close all
 
             % ROI Spline auswaehlen
@@ -205,11 +197,10 @@ classdef Wire
             axis manual;
             axis([0 length(img(1, :)) 0 length(img(1, :)) / 1.6]);
 
-            ph = pan(figureHandle);
 
             mkdir('selectedPoints');
 
-            if (isfile(fullfile('selectedPoints', [name '.mat'])) && obj.UseOldSplie)
+            if (isfile(fullfile('selectedPoints', [name '.mat'])) && obj.UseOldSpline)
                 load(fullfile('selectedPoints', [name '.mat']), 'X', 'Y')
             else
                 title(' Zoome und druecke Enter');
@@ -250,14 +241,15 @@ classdef Wire
             figure, imshowpair(bw_img_masked_withSplineROI, bw_img_masked_withSplineROI_Opened, 'montage');
             title('normal vs opened')
             obj.ImageUsedForCV = bw_img_masked_withSplineROI_Opened;
+            close all;
             obj = obj.initData();
             obj = obj.removeOutliers();
 
         end
 
-        function [obj, upperLayerObj, lowerLayerObj] = splitSteelLayers(obj)
+        function [obj, upperLayerObj, lowerLayerObj] = splitSteelLayers(oldObj)
             global delta;
-            obj=obj.initData();
+            obj=oldObj.initData();
 
             centers = obj.PositionInImage;
             radii = obj.Radius;
@@ -320,8 +312,8 @@ classdef Wire
             y1 = polyval(p, x1);
 
                   obj=obj.removeOutliers();
-            new_radii = obj.Radius;
-            new_centers = obj.PositionInImage;
+            new_radii = obj.Radius; % werden entfernt
+            new_centers = obj.PositionInImage; % werden nicht entfernt
 
             upper_centers = [];
             upper_radii = [];
@@ -363,9 +355,79 @@ classdef Wire
 
             
         end
+        
+        function figurehandle=plot(obj)
+            figurehandle=figure;
+            imshow(obj.ImageOriginal);
+
+            hold on
+            plot(obj.PositionInImage(:, 1), obj.PositionInImage(:, 2), 'o', 'LineWidth', 2, 'XDataSource', 'obj.PositionInImage(:, 1)', 'YDataSource', 'obj.PositionInImage(:, 2)','ZDataSource', 'obj.Radius');
+            viscircles(obj.PositionInImage,obj.Radius);
+            obj.quiverPlot();
+        end
+        
+        function [] = plotDistribution(obj)
+        
+         centers_dst_filtered=norm(obj.DistanceToNextW.VectorsMM);
+         distance_cap_mean=obj.DistanceToNextW.MeanNorm;
+         Area
+         Area_mean
+         Area_median
+         figure;
+        histo_dist_X = histogram(nonzeros(centers_dst_filtered), 50, 'Normalization', 'pdf');
+        hold on
+        y = nonzeros(centers_dst_filtered);
+        y = sort(y);
+        mu = distance_cap_mean;
+        sigma = 4;
+        f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
+        plot(y, f, 'LineWidth', 1.5)
+        title('Histogram der gefilterten Abstaende');
+        hold off
+
+    end 
 
     end
 
+    %% Private Methods
+    methods(Access=private)
+         function obj = initData(obj)
+          
+            if (isempty(obj.ImageUsedForCV))
+                obj.ImageUsedForCV = obj.ImageOriginal;
+            end
+
+            if (obj.WireMaterial == Material.Steel)
+                obj.SensitivityLvL = 0.95;
+                obj.MaxNoOfCircles = 450;
+                obj.MinimumRadius = 3 * 600 / obj.DPI;
+                obj.MaximumRadius = 7 * 600 / obj.DPI;
+            end
+
+            if (obj.WireMaterial == Material.Polymer)
+                obj.SensitivityLvL = 0.95;
+                obj.MaxNoOfCircles = 60;
+                obj.MinimumRadius = 6 * 600 / obj.DPI;
+                obj.MaximumRadius = 10 * 600 / obj.DPI;
+            end
+
+            [~, ~, centers, radii] = segmentImageCircles(obj.ImageUsedForCV, ...
+                obj.SensitivityLvL, obj.MaximumRadius, obj.MinimumRadius, obj.MaxNoOfCircles);
+
+            obj.PositionInImage = centers;
+            obj.Radius = radii;
+
+         end
+        
+                function fh = quiverPlot(obj)
+            srt_cntrs = sortrows(obj.PositionInImage);
+            cntrs_dst = obj.DistanceToNextW.VectorsPx;
+            hold on
+            title(sprintf('Plot of %s: recognized wires and distances', obj.Name));
+            fh = quiver(srt_cntrs(1:end - 1, 1), srt_cntrs(1:end - 1, 2), cntrs_dst(:, 1), cntrs_dst(:, 2), 0);
+            hold off
+        end
+    end
     %% Static Methods
     methods (Static)
 
@@ -379,13 +441,13 @@ classdef Wire
         end
 
         function [x, y] = selectPoints(figurehandle)
-
-            while (true)
-                title('w�hle die Kreuze aus mit linker Maustaste! Return/Eingabe um zu bestaetigen');
-
-                [x_buff, y_buff] = ginput;
+            ph = pan(figurehandle);
                 x = [];
                 y = [];
+            while (true)
+                title('waehle die Kreuze aus mit linker Maustaste! Return/Eingabe um zu bestaetigen');
+
+                [x_buff, y_buff] = ginput;
                 x = cat(1, x, x_buff);
                 y = cat(1, y, y_buff);
 
@@ -412,7 +474,7 @@ classdef Wire
 
         end
 
-        %% function der als callback in figure den ROI (mithilfe delta) anpasst mit arrow up/down
+        % function der als callback in figure den ROI (mithilfe delta) anpasst mit arrow up/down
         function [] = functionHandle_KeyPressFcn(H, E)
             % Figure keypressfcn
             global delta
@@ -454,7 +516,8 @@ classdef Wire
             end
 
         end
-
+        
+        
     end
 
 end
