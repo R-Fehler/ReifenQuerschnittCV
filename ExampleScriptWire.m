@@ -6,7 +6,7 @@
     
     %%%%%%%%%%%%%%%%%%%%%%%%%
     
-    [path, cancelled] = uigetimagefile();
+    [path, cancelled] = imgetfile();
     [filepath, name, ext] = fileparts(path);
 
     if (cancelled)
