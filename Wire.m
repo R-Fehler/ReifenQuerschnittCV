@@ -370,9 +370,6 @@ classdef Wire
         
          centers_dst_filtered=norm(obj.DistanceToNextW.VectorsMM);
          distance_cap_mean=obj.DistanceToNextW.MeanNorm;
-         Area
-         Area_mean
-         Area_median
          figure;
         histo_dist_X = histogram(nonzeros(centers_dst_filtered), 50, 'Normalization', 'pdf');
         hold on
