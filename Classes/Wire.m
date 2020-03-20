@@ -60,7 +60,7 @@ classdef Wire
                 obj.WireMaterial=material;
             end
         end
-        %% für Copy Constructor bei bedarf
+        %% fï¿½r Copy Constructor bei bedarf
         function output = copyObject(input, output)
             C = metaclass(input);
             P = C.Properties;
@@ -192,7 +192,7 @@ classdef Wire
             hold on;
             plot(X, Y, 'o', xgrid, yspline);
 
-            Wire.plotEinhuellende(figureHandle, xgrid, yspline);
+            Wire.plotEinhuellende(figureHandle,gca(), xgrid, yspline);
             newmask = false(size(img, 1), size(img, 2));
 
             for xn = 1:1:length(img(1, :))
@@ -219,10 +219,11 @@ classdef Wire
             close all;
             obj = obj.initData();
             obj = obj.removeOutliers();
-
+            close all;
         end
 
         function [obj, upperLayerObj, lowerLayerObj] = splitSteelLayers(oldObj)
+            close all;
             global delta;
             obj=oldObj.initData();
 
@@ -234,14 +235,16 @@ classdef Wire
             x1 = linspace(0, length(img(1, :)), n);
             y1 = polyval(p, x1);
             
-              figureHandle = figure('keypressfcn', @Wire.functionHandle_KeyPressFcn);
-            imshow(img);
+            figureHandle = figure('keypressfcn', @Wire.functionHandle_KeyPressFcn);
             figureHandle.WindowState = 'fullscreen';
+            imshow(img);
             hold on;
+            
+
             plot(x1, y1, 'LineWidth', 2, 'Color', 'green');
 
             %% eine manuelle ROI auswï¿½hlen (Delta Kriterium in |y| )
-            Wire.plotEinhuellende(figureHandle, x1, y1);
+            Wire.plotEinhuellende(figureHandle,gca(), x1, y1);
             close gcf;
 
             %% Eine Maske mit dem neuen ROI erstellen
@@ -316,7 +319,8 @@ classdef Wire
             lowerLayerObj = DoubleWire(obj);
             lowerLayerObj.PositionInImage = lower_centers;
             lowerLayerObj.Radius = lower_radii;
-            lowerLayerObj.LayerLevel=2;           
+            lowerLayerObj.LayerLevel=2;
+            close all;
         end
         % Plotting Methods
         function figurehandle=plot(obj)
@@ -352,7 +356,7 @@ classdef Wire
             plot(X,Y, 'o', 'LineWidth', 2, 'XDataSource', 'X', 'YDataSource', 'Y','ZDataSource', 'Z');
             
             %% hier kann im Plot falsche Daten mit Tool -->brusch +link entfernt werden
-            title('Lösche Outlier: Linksclick oder Rechtecksauswahl (mit Shift für mehrere) dann Rechtsclick auf einen der roten Punkte --> Remove');
+            title('Lï¿½sche Outlier: Linksclick oder Rechtecksauswahl (mit Shift fï¿½r mehrere) dann Rechtsclick auf einen der roten Punkte --> Remove');
             warninghandle=warndlg('Loeschen von Outliern nur mit Rechtsclick, nicht Tastatur Delete! ');
          
             linkdata on;
@@ -416,7 +420,7 @@ classdef Wire
                 obj.MaximumRadius = 10 * 600 / obj.DPI;
             end
 
-            [~, ~, centers, radii] = segmentImageCircles(obj.ImageUsedForCV, ...
+            [~, ~, centers, radii] = Wire.segmentImageCircles(obj.ImageUsedForCV, ...
                 obj.SensitivityLvL, obj.MaximumRadius, obj.MinimumRadius, obj.MaxNoOfCircles);
 
             obj.PositionInImage = centers;
@@ -443,19 +447,36 @@ classdef Wire
             maskedImage = X;
             maskedImage(~BW) = 0;
         end
+        
+        function [BW,maskedImage,centers,radii] = segmentImageCircles(X,sensitivity,maxRad,minRad,maxN)
+    
+            % Find circles
+            [centers,radii,~] = imfindcircles(X,[minRad maxRad],'ObjectPolarity','bright','Sensitivity',sensitivity);
+            BW = false(size(X,1),size(X,2));
+            [Xgrid,Ygrid] = meshgrid(1:size(BW,2),1:size(BW,1));
+            for n = 1:maxN
+                BW = BW | (hypot(Xgrid-centers(n,1),Ygrid-centers(n,2)) <= radii(n));
+            end
+
+            % Create masked image.
+            maskedImage = X;
+            maskedImage(~BW) = 0;   
+        end
+
+
 
         function [x, y] = selectPoints(figurehandle)
             ph = pan(figurehandle);
                 x = [];
                 y = [];
             while (true)
-                title('waehle die Kreuze aus mit linker Maustaste! Return/Eingabe um zu bestaetigen');
+                title('waehle die Stuetzpunkte im Bild aus mit linker Maustaste! Return/Eingabe um zu bestaetigen');
 
                 [x_buff, y_buff] = ginput;
                 x = cat(1, x, x_buff);
                 y = cat(1, y, y_buff);
 
-                title(' pan und druecke Space. q fuer quit / beenden');
+                title(' pan (verschiebe) und druecke Space, dann wieder Stuetzpunkte auswaehlen. q fuer quit / beenden');
 
                 ph.Enable = 'on';
                 btn = 0;
@@ -498,16 +519,16 @@ classdef Wire
 
         end
 
-        function [] = plotEinhuellende(figurehandle, x1, y1)
+        function [] = plotEinhuellende(figurehandle,figureaxis, x1, y1)
             global delta
             delta=0;
 
-
+            hold(figureaxis, 'on');
             while (true)
-                linehandle = plot(x1, y1 + delta, 'm--', x1, y1 - delta, 'm--');
+                linehandle = plot(figureaxis,x1, y1 + delta, 'm--', x1, y1 - delta, 'm--');
                 title(['Druecke Up/Down Arrow um den Bereich der entsprechenden '...
-                    'Drahtlage komplett mit dem pinken Bereich einzuschließen' newline...
-                    'Dücke anschließend Enter!']);
+                    'Drahtlage(n) komplett mit dem pinken Bereich einzuschliessen' newline...
+                    'Druecke anschliessend Enter!']);
                 waitforbuttonpress;
 
                 if (figurehandle.CurrentCharacter == char(13))%% enter
@@ -520,7 +541,7 @@ classdef Wire
                 delete(children(1));
                 delete(children(2));
             end
-
+        hold (figureaxis,'off');
         end
         
         
