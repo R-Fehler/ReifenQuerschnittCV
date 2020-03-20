@@ -35,19 +35,21 @@ classdef Wire
     properties (Dependent = true)
         %scalars
         MMPerPx
+        DistanceThreshold %[px] threshold to ignore neighbouring wires
+        RadiusMedian
+        DiameterMedian
         %Vectors
         PositionInImageMM
         % Objects
         CrossSectionA
         DistanceToNextW
-        DistanceThreshold %[px] threshold to ignore neighbouring wires
 
 
     end
     %% Public Methods
     methods
 
-        %% Constructor (hier keiner)
+        %% Constructor 
         function obj=Wire(img,dpi,filename,name,material)
             if nargin==0
             else
@@ -58,7 +60,7 @@ classdef Wire
                 obj.WireMaterial=material;
             end
         end
-
+        %% für Copy Constructor bei bedarf
         function output = copyObject(input, output)
             C = metaclass(input);
             P = C.Properties;
@@ -77,6 +79,12 @@ classdef Wire
         function out = get.MMPerPx(obj)
             out = 25.4 / obj.DPI;
         end
+        function out =get.RadiusMedian(obj)
+            out=median(obj.Radius,'omitnan');
+        end
+        function out=get.DiameterMedian(obj)
+            out=obj.RadiusMedian*2;
+        end
         function out= get.DistanceThreshold(obj)
             out=obj.DistanceThresholdTuningValue*obj.DPI/600;
             % 40 is set because of exp. with example images
@@ -91,7 +99,7 @@ classdef Wire
             crossSectionArea = CrosssectionArea;
             crossSectionArea.Px = pi * obj.Radius.^2; % number of pixels in cicle
             % TODO die Berechnung von N Pixeln in mm^2 prï¿½fen
-            crossSectionArea.MM = crossSectionArea.Px * obj.MMPerPx.^2; % px*mm/px*mm/px with px^2=px
+            crossSectionArea.MM = crossSectionArea.Px * obj.MMPerPx.^2; % px* mm/px*mm/px with px^2=px
             crossSectionArea.MeanMM = mean(crossSectionArea.MM, 'omitnan');
             crossSectionArea.MedianMM = median(crossSectionArea.MM, 'omitnan');
         end
@@ -135,40 +143,6 @@ classdef Wire
 
        
 
-        function fighandle = plotDistanceToNextWire(obj)
-            fighandle = figure;
-            hold on
-            title(sprintf('Abstandsverteilung von %s: %s ueber X Koordinate in [mm]', obj.FileName, obj.Name));
-            plot(obj.PositionInImageMM(1:end - 1, 1), obj.DistanceToNextW.VectorsMM(:, 1), '.');
-            plot(obj.PositionInImageMM(1:end - 1, 1), norm(obj.DistanceToNextW.VectorsMM), 'x');
-            legend('Only X Distance', 'Norm of (X,Y) Distance');
-            hold off
-        end
-
-        function obj = removeOutliers(obj)
-            figure, imshow(obj.ImageOriginal);
-            X=obj.PositionInImage(:, 1);
-            Y=obj.PositionInImage(:, 2);
-            Z=obj.Radius;
-            hold on
-            plot(X,Y, 'o', 'LineWidth', 2, 'XDataSource', 'X', 'YDataSource', 'Y','ZDataSource', 'Z');
-            
-            %% hier kann im Plot falsche Daten mit Tool -->brusch +link entfernt werden
-            title('Loesche ungewollte Mittelpunkte mit Link und Brush Tool bei Bedarf ACHTUNG: Rechtsklick und Remove! ');
-            warndlg('Lï¿½schen von Outliern nur mit Rechtsclick --> Remove (im Debug Mode)');
-         
-            linkdata on;
-            brush on;
-
-            %% da brushing nur im debug modus funktioniert.
-            doneHandle = uicontrol('String', 'Done', 'Callback', {@(src, evt)(com.mathworks.mlservices.MLExecuteServices.consoleEval('dbcont'))}');
-            keyboard;
-            obj.PositionInImage=[X,Y];
-            obj.Radius=Z;
-            brush off;
-            linkdata off;
-            close gcf;
-        end
 
         function obj = findCapPly(obj)
             global delta;
@@ -189,7 +163,8 @@ classdef Wire
             title('BW_Mask_afterThreshold (left) and masked_contrast_img (right)');
             obj.ImageProcessed=masked_contrast_img;
             close all
-
+            
+            img=obj.ImageProcessed;
             % ROI Spline auswaehlen
             figureHandle = figure('keypressfcn', @Wire.functionHandle_KeyPressFcn);
             imshow(img);
@@ -341,29 +316,58 @@ classdef Wire
             lowerLayerObj = DoubleWire(obj);
             lowerLayerObj.PositionInImage = lower_centers;
             lowerLayerObj.Radius = lower_radii;
-            lowerLayerObj.LayerLevel=2;
-
-            figure, imshow(obj.ImageOriginal);
-            hold on;
-
-            plot(upper_centers(:, 1), upper_centers(:, 2), 'x', 'LineWidth', 2);
-            plot(lower_centers(:, 1), lower_centers(:, 2), 'x', 'LineWidth', 2);
-            hold off;
-    
-            
-
-
-            
+            lowerLayerObj.LayerLevel=2;           
         end
-        
+        % Plotting Methods
         function figurehandle=plot(obj)
             figurehandle=figure;
             imshow(obj.ImageOriginal);
+            title(sprintf('Plot of %s: recognized wires(%f) and distances(%f)', obj.Name,obj.RadiusMedian, obj.DistanceToNextW.MedianNorm));
 
             hold on
             plot(obj.PositionInImage(:, 1), obj.PositionInImage(:, 2), 'o', 'LineWidth', 2, 'XDataSource', 'obj.PositionInImage(:, 1)', 'YDataSource', 'obj.PositionInImage(:, 2)','ZDataSource', 'obj.Radius');
             viscircles(obj.PositionInImage,obj.Radius);
             obj.quiverPlot();
+            hold off
+        end
+        
+        
+        function fighandle = plotDistanceToNextWire(obj)
+            fighandle = figure;
+            hold on
+            title(sprintf('Abstandsverteilung von %s: %s ueber X Koordinate in [mm]', obj.FileName, obj.Name));
+            plot(obj.PositionInImageMM(1:end - 1, 1), obj.DistanceToNextW.VectorsMM(:, 1), '.');
+            plot(obj.PositionInImageMM(1:end - 1, 1), norm(obj.DistanceToNextW.VectorsMM), 'x');
+            legend('Only X Distance', 'Norm of (X,Y) Distance');
+            hold off
+        end
+
+        function obj = removeOutliers(obj)
+            fh=figure('WindowState', 'maximized');
+            imshow(obj.ImageProcessed);
+            X=obj.PositionInImage(:, 1);
+            Y=obj.PositionInImage(:, 2);
+            Z=obj.Radius;
+            hold on
+            plot(X,Y, 'o', 'LineWidth', 2, 'XDataSource', 'X', 'YDataSource', 'Y','ZDataSource', 'Z');
+            
+            %% hier kann im Plot falsche Daten mit Tool -->brusch +link entfernt werden
+            title('Lösche Outlier: Linksclick oder Rechtecksauswahl (mit Shift für mehrere) dann Rechtsclick auf einen der roten Punkte --> Remove');
+            warninghandle=warndlg('Loeschen von Outliern nur mit Rechtsclick, nicht Tastatur Delete! ');
+         
+            linkdata on;
+            brush on;
+
+            %% da brushing nur im debug modus funktioniert.
+            doneHandle = uicontrol('String', 'Done', 'Callback', {@(src, evt)(com.mathworks.mlservices.MLExecuteServices.consoleEval('dbcont'))}');
+            keyboard;
+            obj.PositionInImage=[X,Y];
+            obj.Radius=Z;
+            brush off;
+            linkdata off;
+            close(fh);
+            close(warninghandle);
+            hold off;
         end
         
         function [] = plotDistribution(obj)
@@ -373,15 +377,16 @@ classdef Wire
          distance_cap_mean=obj.DistanceToNextW.MeanNorm;
          figure;
         histo_dist_X = histogram(nonzeros(centers_dst_filtered), 50, 'Normalization', 'pdf');
-        hold on
-        y = nonzeros(centers_dst_filtered);
-        y = sort(y);
-        mu = distance_cap_mean;
-        sigma = 4;
-        f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
-        plot(y, f, 'LineWidth', 1.5)
-        title('Histogram der gefilterten Abstaende');
-        hold off
+        title('Histogram der Abstaende');
+%         Check why its flat...
+%         hold on
+%         y = nonzeros(centers_dst_filtered);
+%         y = sort(y);
+%         mu = distance_cap_mean;
+%         sigma = 4;
+%         f = exp(-(y - mu).^2 ./ (2 * sigma^2)) ./ (sigma * sqrt(2 * pi));
+%         plot(y, f, 'LineWidth', 1.5)
+%         hold off
 
     end 
 
@@ -394,7 +399,9 @@ classdef Wire
             if (isempty(obj.ImageUsedForCV))
                 obj.ImageUsedForCV = obj.ImageOriginal;
             end
-
+            if (isempty(obj.ImageProcessed))
+                obj.ImageProcessed = obj.ImageOriginal;
+            end
             if (obj.WireMaterial == Material.Steel)
                 obj.SensitivityLvL = 0.95;
                 obj.MaxNoOfCircles = 450;
@@ -421,7 +428,6 @@ classdef Wire
             srt_cntrs = sortrows(obj.PositionInImage);
             cntrs_dst = obj.DistanceToNextW.VectorsPx;
             hold on
-            title(sprintf('Plot of %s: recognized wires and distances', obj.Name));
             fh = quiver(srt_cntrs(1:end - 1, 1), srt_cntrs(1:end - 1, 2), cntrs_dst(:, 1), cntrs_dst(:, 2), 0);
             hold off
         end
@@ -499,7 +505,9 @@ classdef Wire
 
             while (true)
                 linehandle = plot(x1, y1 + delta, 'm--', x1, y1 - delta, 'm--');
-                title('up/down arrow um Einhï¿½llende zu fitten')
+                title(['Druecke Up/Down Arrow um den Bereich der entsprechenden '...
+                    'Drahtlage komplett mit dem pinken Bereich einzuschließen' newline...
+                    'Dücke anschließend Enter!']);
                 waitforbuttonpress;
 
                 if (figurehandle.CurrentCharacter == char(13))%% enter

@@ -103,11 +103,14 @@ classdef DoubleWire < Wire
         function figurehandle=plotDoubleWire(obj)
              figurehandle=figure;
             imshow(obj.ImageOriginal);
+            title(sprintf('Plot of %s: recognized wires(%f) and distances(%f)', obj.Name,obj.RadiusMedian, obj.DistanceToNextDoubleHelix.MedianNorm));
 
-            hold on
+
+            hold on;
             plot(obj.PositionOfDoubleHelix(:, 1), obj.PositionOfDoubleHelix(:, 2), 'o', 'LineWidth', 2, 'XDataSource', 'obj.PositionOfDoubleHelix(:, 1)', 'YDataSource', 'obj.PositionOfDoubleHelix(:, 2)');
             viscircles(obj.PositionInImage,obj.Radius);
             obj.quiverPlotDoubleWire();
+            hold off;
         end
 
     end

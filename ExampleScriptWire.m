@@ -1,9 +1,9 @@
-    %% Einlesen der Bilder
     close all;
     clear vars;
     %% Runtime Variablen%%%%%
     spline_already_selected=true;
-    
+    addpath('Classes');
+
     %%%%%%%%%%%%%%%%%%%%%%%%%
     
     [path, cancelled] = imgetfile();
@@ -37,13 +37,49 @@
     [steelPly,upperSteelPly,lowerSteelPly]=steelPly.splitSteelLayers();
     upperSteelPly.Name='upperSteelPly';
     lowerSteelPly.Name='lowerSteelPly';
-    %% Save and Display Results
+    %%Display Results
     capPly.plot();
-    savefig('capPly');
     upperSteelPly.plotDoubleWire();
     lowerSteelPly.plotDoubleWire();
-    save('resultsOfExampleScript','capPly','upperSteelPly','lowerSteelPly');
+    %% Save Results
+    resultspath='Results';
+    mkdir (resultspath, char(datetime));
+    resultFolderPath=fullfile(resultspath,char(datetime));
+    cd(resultFolderPath);
+    save(['results_', name],'capPly','upperSteelPly','lowerSteelPly');
+ %% write and display main results
+    fileID = fopen(['results_', name,'.txt'],'w');
+
+    fprintf(fileID,['Ergebnisse unter: ',fullfile(resultFolderPath,['results_', name])]);
+    fprintf(fileID,'Alle Ergebnisse in mm \n');
     
+    fprintf(fileID,['%s : \n DiameterMedian:%f \n',...
+        ' ø AreaMedian:%f \n DistanceMedian:%f \n'],...
+        upperSteelPly.Name,upperSteelPly.DiameterMedian,...
+        upperSteelPly.CrossSectionA.MedianMM,...
+        upperSteelPly.DistanceToNextDoubleHelix.MedianNorm);
+    
+   fprintf(fileID,['%s : \n DiameterMedian:%f \n',...
+        ' ø AreaMedian:%f \n DistanceMedian:%f \n'],...
+        lowerSteelPly.Name,lowerSteelPly.DiameterMedian,...
+        lowerSteelPly.CrossSectionA.MedianMM,...
+        lowerSteelPly.DistanceToNextDoubleHelix.MedianNorm);
+    
+    fprintf(fileID,['%s : \n DiameterMedian:%f \n',...
+        ' ø AreaMedian:%f \n DistanceMedian:%f \n'],...
+        capPly.Name,capPly.DiameterMedian,...
+        capPly.CrossSectionA.MedianMM,...
+        capPly.DistanceToNextW.MedianNorm);
+    fclose(fileID);
+    fileID = fopen(['results_', name,'.txt'],'r');
+    while ~feof(fileID)
+        tline = fgetl(fileID);
+        disp(tline)
+    end
+        fclose(fileID);
+  %%  cd back to root    
+
+    cd(fullfile('..','..'));
 
     
 
