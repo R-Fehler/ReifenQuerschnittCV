@@ -37,14 +37,16 @@
     [steelPly,upperSteelPly,lowerSteelPly]=steelPly.splitSteelLayers();
     upperSteelPly.Name='upperSteelPly';
     lowerSteelPly.Name='lowerSteelPly';
-    %%Display Results
+    %% Display Results
     capPly.plot();
     upperSteelPly.plotDoubleWire();
     lowerSteelPly.plotDoubleWire();
     %% Save Results
     resultspath='Results';
-    mkdir (resultspath, char(datetime));
-    resultFolderPath=fullfile(resultspath,char(datetime));
+    datetimeString=char(datetime);
+    pathName=replace(datetimeString,":","-"); % Windows does not support : in filenames
+    mkdir (resultspath, pathName);
+    resultFolderPath=fullfile(resultspath,pathName);
     cd(resultFolderPath);
     save(['results_', name],'capPly','upperSteelPly','lowerSteelPly');
  %% write and display summarized results
