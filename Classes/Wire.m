@@ -144,8 +144,11 @@ classdef Wire
        
 
 
-        function obj = findCapPly(obj)
+        function obj = findCapPly(obj,deltaArg)
             global delta;
+            if nargin>1
+                delta=deltaArg;
+            end
             name = obj.FileName;
             img = obj.ImageOriginal;
 
@@ -185,14 +188,16 @@ classdef Wire
                 zoom off
                 [X, Y] = Wire.selectPoints(figureHandle);
                 save(fullfile('selectedPoints', name), 'X', 'Y')
+                
             end
 
             xgrid = 1:1:length(img(1, :));
             yspline = spline(X, Y, xgrid);
             hold on;
             plot(X, Y, 'o', xgrid, yspline);
-
+            if nargin==1
             Wire.plotEinhuellende(figureHandle,gca(), xgrid, yspline);
+            end
             newmask = false(size(img, 1), size(img, 2));
 
             for xn = 1:1:length(img(1, :))
@@ -218,7 +223,11 @@ classdef Wire
             obj.ImageUsedForCV = bw_img_masked_withSplineROI_Opened;
             close all;
             obj = obj.initData();
+            if nargin==1
             obj = obj.removeOutliers();
+            end
+        
+            
             close all;
         end
 
@@ -290,8 +299,8 @@ classdef Wire
             y1 = polyval(p, x1);
 
                   obj=obj.removeOutliers();
-            new_radii = obj.Radius; % werden entfernt
-            new_centers = obj.PositionInImage; % werden nicht entfernt
+            new_radii = obj.Radius; 
+            new_centers = obj.PositionInImage; 
 
             upper_centers = [];
             upper_radii = [];
@@ -521,7 +530,10 @@ classdef Wire
 
         function [] = plotEinhuellende(figurehandle,figureaxis, x1, y1)
             global delta
-            delta=0;
+            
+            if isempty(delta)
+                delta=0;
+                end
 
             hold(figureaxis, 'on');
             while (true)
