@@ -138,13 +138,13 @@ classdef Wire
 
         %% Methods
 
-        % plots quivers on top of original image
- 
 
        
-
-
+        
+        
         function obj = findCapPly(obj,deltaArg)
+            %use deltaArg for runs without User Input. eg. deltaArg=16
+            %this function return a wire object with recocgnized CapPly layer properties
             global delta;
             if nargin>1
                 delta=deltaArg;
