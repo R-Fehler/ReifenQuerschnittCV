@@ -52,23 +52,20 @@ classdef WireTest < matlab.unittest.TestCase
         % Exception die sowieso getrowt werden.
         
         function testCapPly(testCase)
-                capPly=Wire(testCase.Img,testCase.Dpi,testCase.Filename,'capPly',Material.Polymer);
-                capPly.UseOldSpline=true;
+                load('testData.mat','capPly');
+                testCapPly=Wire(testCase.Img,testCase.Dpi,testCase.Filename,'capPly',Material.Polymer);
+                testCapPly.UseOldSpline=true;
                 delta=16;
-                capPly=capPly.findCapPly(delta);
+                testCapPly=testCapPly.findCapPly(delta);
                 minNoOfWires=40;
-                testCase.verifyGreaterThan(length(capPly.PositionInImage),minNoOfWires);
-                testCase.verifyGreaterThan(length(capPly.PositionInImage),minNoOfWires);
-                testCase.verifyGreaterThan(capPly.DistanceToNextW.MedianNorm,0)
-                testCase.verifyLessThan(capPly.DistanceToNextW.MedianNorm,2)% 2 mm max
-                
-                    
-
-        end
-        
-        
-        
-        
+                testCase.verifyGreaterThan(length(testCapPly.PositionInImage),minNoOfWires);
+                testCase.verifyGreaterThan(length(testCapPly.PositionInImage),minNoOfWires);
+                testCase.verifyGreaterThan(testCapPly.DistanceToNextW.MedianNorm,0)
+                testCase.verifyLessThan(testCapPly.DistanceToNextW.MedianNorm,2)% 2 mm max
+                testCase.verifyEqual(capPly,testCapPly,...
+                    'Wire.findCapPly() was probably changed, capPly and testcapPly not equal');
+                clear capPly
+        end      
     end
 end
 
