@@ -51,7 +51,7 @@ classdef WireTest < matlab.unittest.TestCase
         % was ist sinnvoll zu testen? output in erwarterter Range,
         % Exception die sowieso getrowt werden.
         
-        function testCapPly(testCase)
+        function testWirePolymer_findCapPly(testCase)
                 load('testData.mat','capPly');
                 testCapPly=Wire(testCase.Img,testCase.Dpi,testCase.Filename,'capPly',Material.Polymer);
                 testCapPly.UseOldSpline=true;
@@ -65,7 +65,22 @@ classdef WireTest < matlab.unittest.TestCase
                 testCase.verifyEqual(capPly,testCapPly,...
                     'Wire.findCapPly() was probably changed, capPly and testcapPly not equal');
                 clear capPly
-        end      
+        end
+        
+        function testDoubleWire_splitSteelLayers(testCase)
+                 load('testData_steel.mat','steelPly','upperSteelPly','lowerSteelPly');
+                TestSteelPly=Wire(testCase.Img,testCase.Dpi,testCase.Filename,'steelPly',Material.Steel);
+                delta=72;
+                [TestSteelPly,TestUpperSteelPly,TestLowerSteelPly]=TestSteelPly.splitSteelLayers(delta);
+                TestUpperSteelPly.Name='upperSteelPly';
+                TestLowerSteelPly.Name='lowerSteelPly';
+%                 save('testData_steel','steelPly','upperSteelPly','lowerSteelPly');
+                
+                testCase.verifyEqual(TestSteelPly,steelPly);
+                testCase.verifyEqual(TestUpperSteelPly,upperSteelPly);
+                testCase.verifyEqual(TestLowerSteelPly,lowerSteelPly);
+        end
+        
     end
 end
 

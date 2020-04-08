@@ -231,9 +231,13 @@ classdef Wire
             close all;
         end
 
-        function [obj, upperLayerObj, lowerLayerObj] = splitSteelLayers(oldObj)
+        function [obj, upperLayerObj, lowerLayerObj] = splitSteelLayers(oldObj,deltaArg)
             close all;
             global delta;
+            if nargin>1
+                delta=deltaArg;
+            end
+            
             obj=oldObj.initData();
 
             centers = obj.PositionInImage;
@@ -253,8 +257,9 @@ classdef Wire
             plot(x1, y1, 'LineWidth', 2, 'Color', 'green');
 
             %% eine manuelle ROI ausw�hlen (Delta Kriterium in |y| )
-            Wire.plotEinhuellende(figureHandle,gca(), x1, y1);
-            close gcf;
+            if nargin ==1
+                Wire.plotEinhuellende(figureHandle,gca(), x1, y1);
+            end
 
             %% Eine Maske mit dem neuen ROI erstellen
             mask = false(size(img, 1), size(img, 2));
@@ -297,8 +302,56 @@ classdef Wire
             n = length(img(1, :));
             x1 = linspace(0, length(img(1, :)), n);
             y1 = polyval(p, x1);
+            
+            
+            
+            
+            %% eine manuelle ROI ausw�hlen (Delta Kriterium in |y| )
+            if nargin ==1
+                Wire.plotEinhuellende(figureHandle,gca(), x1, y1);
+            end
+            if nargin>1
+                delta=40;
+            end
 
+                
+                     %% Eine Maske mit dem neuen ROI erstellen
+                mask = false(size(img, 1), size(img, 2));
+
+                for xx = 1:length(img(1, :))
+
+                    for yy = 1:length(img(:, 1))
+
+                        if (abs(yy - y1(xx)) <= delta)
+                            mask(yy, xx) = true;
+                        end
+
+                    end
+
+                end
+                new_centers = [];
+                new_radii = [];
+
+                for nn = 1:size(centers, 1)
+
+                    if mask(round(centers(nn, 2)), round(centers(nn, 1))) == true
+                        new_centers = cat(1, new_centers, centers(nn, :));
+                        new_radii = cat(1, new_radii, radii(nn, :));
+                    end
+
+                end
+
+                obj.PositionInImage = new_centers;
+                obj.Radius = new_radii;
+
+                img_masked_withPolyROI = img;
+                img_masked_withPolyROI(~mask) = 0;
+                obj.ImageUsedForCV = img_masked_withPolyROI;
+%%
+            if nargin==1
                   obj=obj.removeOutliers();
+            end
+            
             new_radii = obj.Radius; 
             new_centers = obj.PositionInImage; 
 
@@ -379,7 +432,9 @@ classdef Wire
             brush off;
             linkdata off;
             close(fh);
+            if(ishandle(warninghandle))
             close(warninghandle);
+            end
             hold off;
         end
         
