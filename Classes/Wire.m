@@ -231,7 +231,7 @@ classdef Wire
             close all;
         end
 
-        function [obj, upperLayerObj, lowerLayerObj] = splitSteelLayers(oldObj,deltaArg)
+        function [obj, upperLayerObj, lowerLayerObj] = findWiresAndSplitSteelLayers(oldObj,deltaArg)
             close all;
             global delta;
             if nargin>1
@@ -473,7 +473,7 @@ classdef Wire
             if (obj.WireMaterial == Material.Steel)
                 obj.SensitivityLvL = 0.95;
                 obj.MaxNoOfCircles = 450;
-                obj.MinimumRadius = 3 * 600 / obj.DPI;
+                obj.MinimumRadius = 3 * 600 / obj.DPI; %% als public parameter
                 obj.MaximumRadius = 7 * 600 / obj.DPI;
             end
 

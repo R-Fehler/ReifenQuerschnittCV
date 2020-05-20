@@ -34,7 +34,7 @@
     capPly=capPly.findCapPly();
     
     % returns [Wire,DoubleWire,DoubleWire]
-    [steelPly,upperSteelPly,lowerSteelPly]=steelPly.splitSteelLayers();
+    [steelPly,upperSteelPly,lowerSteelPly]=steelPly.findWiresAndSplitSteelLayers();
     upperSteelPly.Name='upperSteelPly';
     lowerSteelPly.Name='lowerSteelPly';
     %% Display Results
