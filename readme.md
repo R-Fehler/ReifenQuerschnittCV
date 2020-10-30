@@ -1,6 +1,10 @@
  README
 ========================
-Wire und DoubleWire (f�r gewundene Drahtpaare) sind Objektklassen mit denen Interaktiv die Analyse durchgeführt werden kann.
+
+Beispiel:
+----------------------------
+![Beispiel](./exampleRecognition.png)
+Wire und DoubleWire (fuer gewundene Drahtpaare) sind Objektklassen mit denen Interaktiv die Analyse durchgeführt werden kann.
 DistanceToNextWire und CrossSectionArea sind Daten Objektklassen die den Code vereinfachen.
 
 Version die identischen Output zu testData* generiert hat
